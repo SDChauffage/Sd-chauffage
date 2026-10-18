@@ -8,16 +8,16 @@
 <div id="modal" class="modal"><div class="modalbox"><div class="modalhead"><h2 id="mt"></h2><button class="close" onclick="closeModal()">×</button></div><div id="mb"></div></div></div>
 <script>
 const KEY='sdchauffage-v2';
-const blank={clients:[],events:[],jobs:[],maint:[],quotes:[],invoices:[],docs:[],reminders:[],services:[],settings:{company:'S.D Chauffage',phone:'',email:'',address:'',vat:'',user:'Administrateur'}};
+const blank={inventory:[],clients:[],events:[],jobs:[],maint:[],quotes:[],invoices:[],docs:[],reminders:[],services:[],settings:{company:'S.D Chauffage',phone:'',email:'',address:'',vat:'',user:'Administrateur'}};
 let db=load(); let page='home'; let calDate=new Date();
 function load(){try{const x=JSON.parse(localStorage.getItem(KEY));return x?merge(blank,x):JSON.parse(JSON.stringify(blank))}catch(e){return JSON.parse(JSON.stringify(blank))}}
 function merge(a,b){const o=JSON.parse(JSON.stringify(a));Object.keys(b||{}).forEach(k=>o[k]=b[k]);return o}
 const save=()=>localStorage.setItem(KEY,JSON.stringify(db));const $=id=>document.getElementById(id);const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-const nav=[['home','⌂','Accueil'],['clients','♙','Clients'],['agenda','▣','Agenda'],['jobs','⚒','Interventions'],['maint','◷','Entretiens'],['quotes','□','Devis'],['invoices','▤','Factures'],['docs','▤','Documents'],['reminders','◉','Rappels'],['settings','⚙','Administration']];
+const nav=[['home','⌂','Accueil'],['clients','♙','Clients'],['agenda','▣','Agenda'],['jobs','⚒','Interventions'],['maint','◷','Entretiens'],['quotes','□','Devis'],['invoices','▤','Factures'],['docs','▤','Documents'],['reminders','◉','Rappels'],['inventory','📦','Inventaire'],['settings','⚙','Administration']];
 function login(){if($('lu').value==='admin'&&$('lp').value==='sdchauffage'){sessionStorage.sd2='1';start()}else alert('Identifiant ou mot de passe incorrect.')}
 function logout(){sessionStorage.removeItem('sd2');location.reload()}function start(){$('login').style.display='none';$('app').style.display='flex';drawNav();render()}
 function drawNav(){const h=nav.map(n=>`<button class="${page===n[0]?'active':''}" onclick="go('${n[0]}')">${n[1]} ${n[2]}</button>`).join('');$('nav').innerHTML=h;$('mobile').innerHTML=nav.slice(0,5).map(n=>`<button onclick="go('${n[0]}')"><b>${n[1]}</b>${n[2]}</button>`).join('')}
-function go(p){page=p;drawNav();render();scrollTo(0,0)}function render(){$('title').textContent=nav.find(n=>n[0]===page)[2];({home,clients,agenda,jobs,maint,quotes,invoices,docs,reminders,settings}[page])()}
+function go(p){page=p;drawNav();render();scrollTo(0,0)}function render(){$('title').textContent=nav.find(n=>n[0]===page)[2];({home,clients,agenda,jobs,maint,quotes,invoices,docs,reminders,inventory,settings}[page])()}
 function today(){return new Date().toISOString().slice(0,10)}function fmt(d){if(!d)return '—';const [y,m,day]=d.split('-');return y&&m&&day?`${day}/${m}/${y}`:d}
 function clientOptions(selected=''){return `<option value="">Sélectionner</option>`+db.clients.map(c=>`<option ${c.name===selected?'selected':''}>${esc(c.name)}</option>`).join('')}
 function home(){const upcoming=[...db.events].filter(e=>e.date>=today()).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).slice(0,5);const due=db.maint.filter(m=>m.next&&m.next<=today()).length;const unpaid=db.invoices.filter(i=>i.status==='Impayée').length;$('content').innerHTML=`<div class="grid"><div class="card stat"><div>♙</div><div class="n">${db.clients.length}</div><div class="l">Clients</div></div><div class="card stat"><div>▣</div><div class="n">${db.events.length}</div><div class="l">Rendez-vous</div></div><div class="card stat"><div>⚒</div><div class="n">${db.jobs.length}</div><div class="l">Interventions</div></div><div class="card stat"><div>◷</div><div class="n">${due}</div><div class="l">Entretiens à prévoir</div></div></div><div class="section card"><h2>Actions rapides</h2><div class="quick"><button onclick="openClient()">👤<b>Nouveau client</b><small>Créer une fiche</small></button><button onclick="openEvent()">📅<b>Nouveau rendez-vous</b><small>Ajouter à l'agenda</small></button><button onclick="openJob()">🔧<b>Nouvelle intervention</b><small>Rapport de travail</small></button><button onclick="openQuote()">📄<b>Nouveau devis</b><small>Créer un devis</small></button></div></div><div class="grid3 section"><div class="card"><h2>Prochains rendez-vous</h2>${upcoming.map(e=>`<div class="row"><span><b>${esc(e.client||'Sans client')}</b><br><small>${fmt(e.date)} · ${esc(e.time)} · ${esc(e.type)}</small></span><span class="badge">${esc(e.status||'Planifié')}</span></div>`).join('')||'<div class="empty">Aucun rendez-vous.</div>'}</div><div class="card"><h2>Alertes</h2><div class="row"><span>Entretiens à prévoir</span><b>${due}</b></div><div class="row"><span>Factures impayées</span><b>${unpaid}</b></div><div class="row"><span>Rappels</span><b>${db.reminders.filter(r=>!r.done).length}</b></div></div><div class="card"><h2>Chiffre facturé</h2><div class="n" style="font-size:28px;font-weight:850">${db.invoices.reduce((s,i)=>s+Number(i.total||0),0).toFixed(2)} €</div><small style="color:var(--muted)">Total des factures enregistrées</small></div></div>`}
@@ -52,4 +52,58 @@ function demoData(){db.clients=[{name:'Jean Dupont',phone:'0470 00 00 00',email:
 function remove(k,i){if(i<0)return;if(confirm('Supprimer cet élément ?')){db[k].splice(i,1);save();closeModal();render()}}function resetAll(){if(confirm('Supprimer toutes les données enregistrées sur cet appareil ?')){db=JSON.parse(JSON.stringify(blank));save();render()}}function closeModal(){$('modal').classList.remove('open')}
 if(sessionStorage.sd2==='1')start();
 </script>
-<script src="design-tiffany-v3.js"></script></body></html>
+<script src="design-tiffany-v3.js"></script>
+<script>
+// Liste de matériel manquant, conservée avec les données existantes.
+let inventoryQuery = '';
+let inventoryStatus = '';
+function inventory() {
+  $('content').innerHTML = `<div class="card">
+    <div class="actions between"><div><h2>Matériel à commander</h2><p style="color:var(--muted)">Note les gicleurs et les pièces qu’il te manque.</p></div>
+    <button class="btn primary" onclick="openInventory()">+ Ajouter du matériel</button></div>
+    <div class="actions section"><div class="search"><input aria-label="Rechercher du matériel" placeholder="Rechercher une référence, une marque…" value="${esc(inventoryQuery)}" oninput="inventoryQuery=this.value;filterInventory()"></div>
+    <select aria-label="Filtrer par statut" class="btn soft" onchange="inventoryStatus=this.value;filterInventory()"><option value="">Tous les statuts</option>${['À commander','Commandé','Reçu'].map(s=>`<option ${inventoryStatus===s?'selected':''}>${s}</option>`).join('')}</select></div>
+    <div class="tablewrap section"><table class="table"><thead><tr><th>Matériel / référence</th><th>Quantité</th><th>Statut</th><th>Notes</th><th></th></tr></thead><tbody id="inventory-list"></tbody></table></div></div>`;
+  filterInventory();
+}
+function filterInventory() {
+  const q=inventoryQuery.trim().toLocaleLowerCase('fr');
+  $('inventory-list').innerHTML=db.inventory.map((x,i)=>({x,i})).filter(({x})=>(!inventoryStatus||x.status===inventoryStatus)&&[x.reference,x.notes].join(' ').toLocaleLowerCase('fr').includes(q)).map(({x,i})=>`<tr><td><b>${esc(x.reference)}</b></td><td>${esc(x.quantity)}</td><td><span class="badge ${x.status==='Reçu'?'ok':x.status==='À commander'?'warn':''}">${esc(x.status)}</span></td><td style="white-space:pre-wrap">${esc(x.notes)}</td><td><button class="btn soft" onclick="openInventory(${i})">Modifier</button></td></tr>`).join('')||'<tr><td colspan="5" class="empty">Aucun matériel dans cette liste.</td></tr>';
+}
+function openInventory(i=null) {
+  const x=i===null?{reference:'',quantity:1,status:'À commander',notes:''}:db.inventory[i];
+  if(!x)return;
+  $('mt').textContent=i===null?'Ajouter du matériel':'Modifier le matériel';
+  $('mb').innerHTML=`<form onsubmit="event.preventDefault();saveInventory(${i===null?'null':i})">
+    <div class="field"><label for="inv-reference">Matériel / référence du gicleur</label><input id="inv-reference" required maxlength="200" placeholder="Ex. : Delavan 0,85 — 45° B" value="${esc(x.reference)}"></div>
+    <div class="formgrid"><div class="field"><label for="inv-quantity">Quantité à commander</label><input id="inv-quantity" type="number" required min="1" max="9999" step="1" value="${esc(x.quantity)}"></div>
+    <div class="field"><label for="inv-status">Statut</label><select id="inv-status">${['À commander','Commandé','Reçu'].map(s=>`<option ${x.status===s?'selected':''}>${s}</option>`).join('')}</select></div></div>
+    <div class="field"><label for="inv-notes">Notes / fournisseur</label><textarea id="inv-notes" maxlength="2000" placeholder="Marque, modèle de chaudière, fournisseur…">${esc(x.notes)}</textarea></div>
+    <div class="actions"><button type="submit" class="btn primary">Enregistrer</button><button type="button" class="btn ghost" onclick="closeModal()">Annuler</button>${i!==null?`<button type="button" class="btn danger" onclick="remove('inventory',${i})">Supprimer</button>`:''}</div>
+  </form>`;
+  $('modal').classList.add('open');
+}
+function saveInventory(i) {
+  const reference=$('inv-reference').value.trim();
+  const quantity=Number($('inv-quantity').value);
+  if(!reference||!Number.isInteger(quantity)||quantity<1||quantity>9999)return;
+  const x={reference,quantity,status:$('inv-status').value,notes:$('inv-notes').value.trim()};
+  if(i===null)db.inventory.push(x);else db.inventory[i]=x;
+  save();closeModal();render();
+}
+const homeWithTiffanyDesign=window.home;
+window.home=function(){
+  homeWithTiffanyDesign();
+  const tiles=document.querySelector('.tiffany-tiles');
+  if(tiles){
+    const tile=document.createElement('button');
+    tile.className='tiffany-tile teal';
+    tile.onclick=()=>go('inventory');
+    const count=db.inventory.filter(x=>x.status==='À commander').length;
+    tile.innerHTML=`<span class="ti">📦</span><strong>Inventaire ›</strong><small>Gicleurs et matériel manquant<br>${count} référence${count>1?'s':''} à commander</small>`;
+    tiles.insertBefore(tile,tiles.lastElementChild);
+  }
+};
+if(sessionStorage.sd2==='1'){drawNav();render();}
+</script>
+</body></html>
