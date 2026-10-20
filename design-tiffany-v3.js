@@ -546,7 +546,7 @@
 
     const upcoming = [...db.events]
 
-      .filter(e => e.date >= today() && e.status !== "Annulé")
+      .filter(e => e.kind !== "note" && e.date >= today() && e.status !== "Annulé")
 
       .sort((a, b) =>
 
@@ -610,7 +610,7 @@
 
         "Agenda",
 
-        "Rendez-vous et déplacements",
+        "Rendez-vous et notes",
 
         "teal"
 
