@@ -16,9 +16,8 @@ function mergeData(base,local,remote){const result=Object.create(null),conflicts
 window.SDCloudCore={normalise,mergeData,same};
 if(!CONFIG)return;
 let session=null,base=normalise(blank,true),busy=false,timer=null,refreshing=null,conflict=null,lastDisk=null;
-let lastMessage='Connexion requise',lastError=false,verified=false,opening=false,resumeModal=false,authEpoch=0,lastActivity=Date.now();
-const IDLE_LIMIT=15*60*1000;
-function storedSession(){try{return JSON.parse(sessionStorage.getItem(SESSION))||null;}catch{return null;}}
+let lastMessage='Connexion requise',lastError=false,verified=false,opening=false,resumeModal=false,authEpoch=0;
+function storedSession(){try{return JSON.parse(localStorage.getItem(SESSION)||sessionStorage.getItem(SESSION))||null;}catch{return null;}}
 function forgetSession(){session=null;verified=false;sessionStorage.removeItem(SESSION);localStorage.removeItem(SESSION);}
 function read(key,fallback){try{return JSON.parse(localStorage.getItem(key))||fallback;}catch{return fallback;}}
 function status(message,error=false){lastMessage=message;lastError=error;const el=$('cloud-status');if(el){el.textContent=message;el.style.color=error?'#ad4141':'#526f84';}if($('cloud-resolve'))$('cloud-resolve').hidden=!conflict;}
@@ -29,9 +28,9 @@ function queue(){clearTimeout(timer);timer=setTimeout(()=>synchronise(),500);}
 function saveLocal(){if(!verified)throw new Error('Reconnecte-toi avant d’enregistrer.');db=normalise(db);persist();status('Modifications enregistrées ici · synchronisation en attente');queue();}
 save=saveLocal;
 async function request(path,options={},auth=true){const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),15000);try{const response=await fetch(CONFIG.url+path,{...options,signal:controller.signal,headers:{apikey:CONFIG.key,'Content-Type':'application/json',...(auth?{Authorization:'Bearer '+session.access_token}:{}),...options.headers}});const body=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(response.status===401||response.status===403?'Connexion requise ou accès refusé.':body.msg||body.message||'Connexion au serveur impossible.');error.status=response.status;throw error;}return body;}finally{clearTimeout(timeout);}}
-function setSession(s){session={...s,expires_at:s.expires_at||Math.floor(Date.now()/1000)+(s.expires_in||3600)};sessionStorage.setItem(SESSION,JSON.stringify(session));localStorage.removeItem(SESSION);}
+function setSession(s){session={...s,expires_at:s.expires_at||Math.floor(Date.now()/1000)+(s.expires_in||3600)};localStorage.setItem(SESSION,JSON.stringify(session));sessionStorage.removeItem(SESSION);}
 async function validSession(){if(!session)throw new Error('Connexion requise.');if(session.expires_at>Date.now()/1000+60)return;const epoch=authEpoch;if(!refreshing)refreshing=request('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:JSON.stringify({refresh_token:session.refresh_token})},false).then(s=>{if(epoch!==authEpoch)throw new Error('Session verrouillée');setSession(s);}).finally(()=>refreshing=null);await refreshing;}
-async function verifyAccess(epoch){await validSession();const user=await request('/auth/v1/user');if(epoch!==authEpoch)return false;if(!user.id||user.id!==session.user?.id)throw new Error('Session invalide.');const rows=await request('/rest/v1/app_data?id=eq.1&select=revision');if(epoch!==authEpoch)return false;if(!rows.length)throw new Error('Ce compte n’a pas accès à l’espace partagé.');verified=true;lastActivity=Date.now();return true;}
+async function verifyAccess(epoch){await validSession();const user=await request('/auth/v1/user');if(epoch!==authEpoch)return false;if(!user.id||user.id!==session.user?.id)throw new Error('Session invalide.');const rows=await request('/rest/v1/app_data?id=eq.1&select=revision');if(epoch!==authEpoch)return false;if(!rows.length)throw new Error('Ce compte n’a pas accès à l’espace partagé.');verified=true;return true;}
 function openVerifiedApp(){const previous=read(META,null);base=previous?.user===session.user.id?normalise(previous.data,true):normalise(blank,true);sessionStorage.sd2='1';start();if(resumeModal){$('modal').classList.add('open');resumeModal=false;}}
 
 function cleanRemote(data){return normalise(data&&Object.keys(data).length?data:blank,true);}
@@ -69,15 +68,12 @@ const oldDrawNav=window.drawNav;window.drawNav=function(){oldDrawNav();let strip
 try{if(!localStorage.getItem(BACKUP))localStorage.setItem(BACKUP,JSON.stringify(db));db=normalise(db,true);persist();}catch(e){showLogin('Impossible de sauvegarder les données sur cet appareil. Libère de l’espace avant de continuer.');return;}
 const info=document.createElement('div');info.className='cloud-login-note';info.innerHTML='<div id="cloud-login-message" role="status" aria-live="polite"></div><p>Utilisez le même compte de l’app sur vos deux appareils.</p>';document.querySelector('.loginbox').appendChild(info);
 $('lu').value='';$('lu').type='email';$('lu').placeholder='E-mail du compte de l’app';$('lp').value='';document.querySelector('.login .hint').textContent='Données partagées et sauvegarde locale';
-// Migration unique de l’ancienne session persistante vers la session de cet onglet.
-session=storedSession()||read(SESSION,null);localStorage.removeItem(SESSION);if(session)sessionStorage.setItem(SESSION,JSON.stringify(session));
+// Connexion conservée sur cet appareil, avec vérification au démarrage.
+session=storedSession();if(session)setSession(session);
 showLogin(session?'Vérification de ta session…':'');
 if(session){const epoch=++authEpoch;verifyAccess(epoch).then(ok=>{if(ok){openVerifiedApp();synchronise();}}).catch(()=>{if(epoch===authEpoch){forgetSession();showLogin('Reconnecte-toi pour accéder à tes données.');}});}
-function idleExpired(){if(verified&&Date.now()-lastActivity>=IDLE_LIMIT){lockApp('Application verrouillée après 15 minutes d’inactivité.');return true;}return false;}
-for(const eventName of ['pointerdown','keydown','touchstart'])document.addEventListener(eventName,()=>{if(!idleExpired())lastActivity=Date.now();},{passive:true});
-setInterval(idleExpired,15000);
 
 setInterval(()=>{if(document.visibilityState!=='hidden')synchronise();},5000);
-window.addEventListener('online',()=>synchronise());document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&!idleExpired())synchronise();});
+window.addEventListener('online',()=>synchronise());document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')synchronise();});
 window.addEventListener('storage',event=>{if(event.key==='sdchauffage-lock-event'&&verified)lockApp('Session fermée dans un autre onglet.');if(verified&&event.key===KEY&&event.newValue){try{const other=normalise(JSON.parse(event.newValue),true);const merged=mergeData(lastDisk||base,db,other);if(!merged.conflicts.length&&!editing()){db=merged.data;lastDisk=clone(other);render();queue();}else status('Autre onglet modifié · ferme le formulaire puis actualise',true);}catch{}}});
 })();
