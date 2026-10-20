@@ -1,0 +1,19 @@
+{
+  "id": "./",
+  "name": "S.D Chauffage",
+  "short_name": "S.D Chauffage",
+  "lang": "fr-BE",
+  "description": "Gestion des clients, rendez-vous, entretiens, devis et factures S.D Chauffage.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f7fc",
+  "theme_color": "#102b45",
+  "icons": [
+    {
+      "src": "./sd-chauffage-icon.png",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
