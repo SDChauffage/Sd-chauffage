@@ -34,7 +34,7 @@ function qrSvg(data){
 function render(settings,fallback,amount,number){
  const iban=settings.iban||fallback.iban||'',bic=settings.bic||fallback.bic||'';
  const name=settings.paymentName||settings.company||fallback.paymentName||fallback.company||'';
- const reference='Facture '+clean(number);
+ const reference=clean(number);
  if(!iban)return '';
  let qr='';
  if((settings.paymentQr??fallback.paymentQr)!==false&&amount>0){
