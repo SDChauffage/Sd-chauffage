@@ -1,0 +1,17 @@
+{
+  "count": 19568,
+  "files": [
+    "buderus-2026-1.json",
+    "buderus-2026-2.json",
+    "buderus-2026-3.json",
+    "buderus-2026-4.json",
+    "buderus-2026-5.json",
+    "buderus-2026-6.json",
+    "buderus-2026-7.json"
+  ],
+  "source": "https://www.buderus.com/be/fr/partenaires/installateurs/documentation/listes-de-prix/",
+  "tariffDate": "2026-07",
+  "importedAt": "2026-10-20",
+  "currency": "EUR",
+  "prices": "public_excluding_vat"
+}
