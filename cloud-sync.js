@@ -2,6 +2,7 @@
 (function(){
 'use strict';
 const CONFIG=window.SD_CLOUD;
+const OFFLINE='sdchauffage-offline-verified-v1';
 const SESSION='sdchauffage-cloud-session-v1',META='sdchauffage-cloud-base-v1',BACKUP='sdchauffage-before-cloud-v1';
 const collections=['clients','events','jobs','maint','quotes','invoices','docs','reminders','services','inventory'];
 const clone=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
@@ -18,7 +19,7 @@ if(!CONFIG)return;
 let session=null,base=normalise(blank,true),busy=false,timer=null,refreshing=null,conflict=null,lastDisk=null;
 let lastMessage='Connexion requise',lastError=false,verified=false,opening=false,resumeModal=false,authEpoch=0;
 function storedSession(){try{return JSON.parse(localStorage.getItem(SESSION)||sessionStorage.getItem(SESSION))||null;}catch{return null;}}
-function forgetSession(){session=null;verified=false;sessionStorage.removeItem(SESSION);localStorage.removeItem(SESSION);}
+function forgetSession(){session=null;verified=false;sessionStorage.removeItem(SESSION);localStorage.removeItem(SESSION);localStorage.removeItem(OFFLINE);}
 function read(key,fallback){try{return JSON.parse(localStorage.getItem(key))||fallback;}catch{return fallback;}}
 function status(message,error=false){lastMessage=message;lastError=error;const el=$('cloud-status');if(el){el.textContent=message;el.style.color=error?'#ad4141':'#526f84';}if($('cloud-resolve'))$('cloud-resolve').hidden=!conflict;}
 function editing(){return $('modal').classList.contains('open')||['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);}
@@ -30,7 +31,7 @@ save=saveLocal;
 async function request(path,options={},auth=true){const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),15000);try{const response=await fetch(CONFIG.url+path,{...options,signal:controller.signal,headers:{apikey:CONFIG.key,'Content-Type':'application/json',...(auth?{Authorization:'Bearer '+session.access_token}:{}),...options.headers}});const body=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(response.status===401||response.status===403?'Connexion requise ou accès refusé.':body.msg||body.message||'Connexion au serveur impossible.');error.status=response.status;throw error;}return body;}finally{clearTimeout(timeout);}}
 function setSession(s){session={...s,expires_at:s.expires_at||Math.floor(Date.now()/1000)+(s.expires_in||3600)};localStorage.setItem(SESSION,JSON.stringify(session));sessionStorage.removeItem(SESSION);}
 async function validSession(){if(!session)throw new Error('Connexion requise.');if(session.expires_at>Date.now()/1000+60)return;const epoch=authEpoch;if(!refreshing)refreshing=request('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:JSON.stringify({refresh_token:session.refresh_token})},false).then(s=>{if(epoch!==authEpoch)throw new Error('Session verrouillée');setSession(s);}).finally(()=>refreshing=null);await refreshing;}
-async function verifyAccess(epoch){await validSession();const user=await request('/auth/v1/user');if(epoch!==authEpoch)return false;if(!user.id||user.id!==session.user?.id)throw new Error('Session invalide.');const rows=await request('/rest/v1/app_data?id=eq.1&select=revision');if(epoch!==authEpoch)return false;if(!rows.length)throw new Error('Ce compte n’a pas accès à l’espace partagé.');verified=true;return true;}
+async function verifyAccess(epoch){await validSession();const user=await request('/auth/v1/user');if(epoch!==authEpoch)return false;if(!user.id||user.id!==session.user?.id)throw new Error('Session invalide.');const rows=await request('/rest/v1/app_data?id=eq.1&select=revision');if(epoch!==authEpoch)return false;if(!rows.length)throw new Error('Ce compte n’a pas accès à l’espace partagé.');verified=true;localStorage.setItem(OFFLINE,JSON.stringify({user:user.id,at:Date.now()}));return true;}
 function openVerifiedApp(){const previous=read(META,null);base=previous?.user===session.user.id?normalise(previous.data,true):normalise(blank,true);sessionStorage.sd2='1';start();if(resumeModal){$('modal').classList.add('open');resumeModal=false;}}
 
 function cleanRemote(data){return normalise(data&&Object.keys(data).length?data:blank,true);}
@@ -71,7 +72,7 @@ $('lu').value='';$('lu').type='email';$('lu').placeholder='E-mail du compte de l
 // Connexion conservée sur cet appareil, avec vérification au démarrage.
 session=storedSession();if(session)setSession(session);
 showLogin(session?'Vérification de ta session…':'');
-if(session){const epoch=++authEpoch;verifyAccess(epoch).then(ok=>{if(ok){openVerifiedApp();synchronise();}}).catch(()=>{if(epoch===authEpoch){forgetSession();showLogin('Reconnecte-toi pour accéder à tes données.');}});}
+if(session){const epoch=++authEpoch;const offlineAllowed=()=>{try{const proof=JSON.parse(localStorage.getItem(OFFLINE)||'null');return !navigator.onLine&&proof?.user===session?.user?.id&&Date.now()-proof.at<24*60*60*1000&&Date.now()>=proof.at;}catch{return false;}};if(offlineAllowed()){verified=true;openVerifiedApp();status('Hors connexion · données locales · synchronisation au retour du réseau');}else verifyAccess(epoch).then(ok=>{if(ok){openVerifiedApp();synchronise();}}).catch(()=>{if(epoch!==authEpoch)return;if(offlineAllowed()){verified=true;openVerifiedApp();status('Hors connexion · données locales · synchronisation au retour du réseau');}else{forgetSession();showLogin('Reconnecte-toi pour accéder à tes données.');}});}
 
 setInterval(()=>{if(document.visibilityState!=='hidden')synchronise();},5000);
 window.addEventListener('online',()=>synchronise());document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')synchronise();});
