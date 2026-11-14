@@ -219,7 +219,7 @@ if(sessionStorage.sd2==='1'){drawNav();render();}
 <script src="agenda-maintenance.js?v=1"></script>
 <script src="cloud-config.js?v=1"></script>
 <script src="cloud-sync.js?v=6"></script>
-<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=2").catch(()=>{}));}</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=3",{updateViaCache:"none"}).then(reg=>reg.update()).catch(()=>{}));}</script>
 </body></html>
 
 
