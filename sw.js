@@ -1,5 +1,5 @@
 /* S.D Chauffage : démarrage hors ligne. Ne jamais stocker les réponses Supabase. */
-const CACHE='sd-chauffage-shell-v5';
+const CACHE='sd-chauffage-shell-v6';
 const CORE=['./index.html','./design-tiffany-v3.js','./vendor/qrcode.js','./vendor/html2pdf.bundle.min.js','./invoice-payment.js','./billing-editor.js','./appointment-to-invoice.js','./buderus-catalogue.js','./maintenance-reminders.js','./client-installations.js','./agenda-maintenance.js','./cloud-config.js','./cloud-sync.js'];
 const OPTIONAL=['./manifest.webmanifest','./sd-chauffage-icon.png','./sd-chauffage-document-logo.svg'];
 const shellURL=new URL('./index.html',self.registration.scope).href;
@@ -52,12 +52,15 @@ self.addEventListener('fetch',event=>{
   return;
  }
  event.respondWith((async()=>{
-  const cached=await caches.match(req,{ignoreSearch:true});
-  if(cached)return cached;
+  // Toujours chercher la version actuelle quand le réseau répond.
+  // L'ancien cache-first gardait billing-editor.js périmé sur iPad.
   try{
-   const response=await fetch(req);
+   const response=await fetch(req,{cache:'no-store'});
    if(response.ok){const cache=await caches.open(CACHE);await cache.put(req,response.clone());}
    return response;
-  }catch{return Response.error();}
+  }catch{
+   const cache=await caches.open(CACHE);
+   return (await cache.match(req,{ignoreSearch:true}))||Response.error();
+  }
  })());
 });
