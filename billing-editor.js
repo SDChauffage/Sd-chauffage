@@ -142,17 +142,32 @@ async function printDocument(d,key){
  if(!container){
   container=document.createElement('div');
   container.id='billing-pdf-export';
-  container.style.cssText='position:fixed;left:-12000px;top:0;width:794px;background:#fff;z-index:-1;pointer-events:none;';
+  container.style.cssText='position:fixed;left:0;top:0;transform:translateX(-200vw);width:700px;background:#fff;z-index:-1;pointer-events:none;';
   document.body.appendChild(container);
  }
  container.innerHTML=paper(d,key);
  const sheet=container.querySelector('.billing-paper');
- sheet.style.cssText='width:794px;max-width:none;min-height:0;padding:30px;border:0;box-sizing:border-box;background:#fff;color:#17232d;';
+ sheet.style.cssText='width:700px;max-width:700px;min-height:0;padding:25px;border:0;box-sizing:border-box;background:#fff;color:#17232d;font-size:12px;overflow:hidden;';
+ // Contraindre explicitement le tableau à la largeur réelle de la feuille A4.
+ const table=sheet.querySelector('table');
+ if(table){table.style.width='100%';table.style.tableLayout='fixed';table.querySelectorAll('th,td').forEach(cell=>{cell.style.overflowWrap='anywhere';cell.style.wordBreak='normal';});};
  const filename=(key==='quotes'?'Devis-':'Facture-')+String(d.number||'document').replace(/[^a-zA-Z0-9_-]/g,'-')+'.pdf';
  try{
-  await Promise.all(Array.from(sheet.querySelectorAll('img')).map(img=>img.decode?img.decode():new Promise((resolve,reject)=>{if(img.complete)return img.naturalWidth?resolve():reject(Error('Logo indisponible'));img.onload=resolve;img.onerror=reject;})));
+  await Promise.all(Array.from(sheet.querySelectorAll('img')).map(async img=>{
+   if(img.decode)await img.decode();else await new Promise((resolve,reject)=>{if(img.complete)return img.naturalWidth?resolve():reject(Error('Logo indisponible'));img.onload=resolve;img.onerror=reject;});
+   // Convertir le logo SVG (qui contient une photo JPEG intégrée) en image PNG.
+   // html2canvas sur iPad peut tronquer ce SVG lors de la création du PDF.
+   if(img.classList.contains('billing-document-logo')){
+    const canvas=document.createElement('canvas');canvas.width=846;canvas.height=365;
+    const ctx=canvas.getContext('2d');if(!ctx)throw Error('Canvas indisponible');
+    ctx.drawImage(img,0,0,846,365);
+    img.src=canvas.toDataURL('image/png');
+    await img.decode();
+    img.style.cssText='display:block;width:250px;max-width:48%;height:auto;object-fit:contain;';
+   }
+  }));
   await html2pdf().set({
-   margin:[12,12,12,12],
+   margin:[10,10,10,10],
    filename,
    image:{type:'jpeg',quality:0.97},
    html2canvas:{scale:2,backgroundColor:'#ffffff',useCORS:true,scrollX:0,scrollY:0,logging:false},
