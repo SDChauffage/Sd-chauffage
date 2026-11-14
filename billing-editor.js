@@ -65,7 +65,7 @@ button.billing-detail:hover{color:#304cb2}.billing-detail span{color:var(--muted
 function companyAddressMarkup(value){const address=String(value??'').replace(/[ \t,;]*1440[ \t]+wauthier[ \t-]*braine\b/gi,'\n1440 Wauthier-Braine');return address.split(/\r?\n/).map(line=>line.trim()).filter(Boolean).map(line=>'<div>'+esc(line)+'</div>').join('');}
 // Une échéance d'entretien appartient au suivi interne, pas au texte d'une facture.
 function invoiceNotes(value){
- return String(value||'').split(/\r?\n/).filter(line=>!/^\s*(?:échéance|date\s+d[’']échéance)\s+(?:de\s+l[’']?)?entretien\s*:/i.test(line)).join('\n').trim();
+ return String(value||'').split(/\r?\n/).filter(line=>!/^\s*(?:échéance|date\s+d[’']échéance)\s+(?:de\s+l[’']?)?entretien\s*:/i.test(line)&&!/^\s*chaudière\s*[.!]?\s*$/i.test(line)).join('\n').trim();
 }
 function paper(d,key,editable=false){
  const s=d.companySnapshot||db.settings;const c=d.clientSnapshot||db.clients.find(c=>c.name===d.client)||{name:d.client};
