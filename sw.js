@@ -1,5 +1,5 @@
 /* S.D Chauffage : démarrage hors ligne. Ne jamais stocker les réponses Supabase. */
-const CACHE='sd-chauffage-shell-v6';
+const CACHE='sd-chauffage-shell-v7';
 const CORE=['./index.html','./design-tiffany-v3.js','./vendor/qrcode.js','./vendor/html2pdf.bundle.min.js','./invoice-payment.js','./billing-editor.js','./appointment-to-invoice.js','./buderus-catalogue.js','./maintenance-reminders.js','./client-installations.js','./agenda-maintenance.js','./cloud-config.js','./cloud-sync.js'];
 const OPTIONAL=['./manifest.webmanifest','./sd-chauffage-icon.png','./sd-chauffage-document-logo.svg'];
 const shellURL=new URL('./index.html',self.registration.scope).href;
