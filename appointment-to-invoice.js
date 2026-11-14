@@ -26,7 +26,7 @@ window.invoiceFromAppointment=function(i){
  const date=today();
  const prefix='FAC-'+new Date().getFullYear()+'-';
  const max=db.invoices.reduce((n,d)=>d.number?.startsWith(prefix)?Math.max(n,Number(d.number.slice(prefix.length))||0):n,0);
- const doc={number:prefix+String(max+1).padStart(4,'0'),client:client.name,clientSnapshot:JSON.parse(JSON.stringify(client)),date,dueDate:(()=>{const x=new Date(date+'T12:00:00');x.setDate(x.getDate()+7);return x.toISOString().slice(0,10)})(),status:'Brouillon',subject:e.type||'Intervention',notes:String(e.notes||'').split(/\r?\n/).filter(line=>!/^\s*(?:échéance|date\s+d[’']échéance)\s+(?:de\s+l[’']?)?entretien\s*:/i.test(line)).join('\n').trim(),lines:[{description:e.type||'Intervention',quantity:1,unitPrice:0,discount:0,vat:21}],pricesIncludeVat:false,sourceAppointmentId:key};
+ const doc={number:prefix+String(max+1).padStart(4,'0'),client:client.name,clientSnapshot:JSON.parse(JSON.stringify(client)),date,dueDate:(()=>{const x=new Date(date+'T12:00:00');x.setDate(x.getDate()+7);return x.toISOString().slice(0,10)})(),status:'Brouillon',subject:e.type||'Intervention',notes:String(e.notes||'').split(/\r?\n/).filter(line=>!/^\s*(?:échéance|date\s+d[’']échéance)\s+(?:de\s+l[’']?)?entretien\s*:/i.test(line)&&!/^\s*chaudière\s*[.!]?\s*$/i.test(line)).join('\n').trim(),lines:[{description:e.type||'Intervention',quantity:1,unitPrice:0,discount:0,vat:21}],pricesIncludeVat:false,sourceAppointmentId:key};
  const oldLink=e.invoiceLinkId;
  e.invoiceLinkId=key;db.invoices.push(doc);
  try{save()}catch(err){db.invoices.pop();if(oldLink)e.invoiceLinkId=oldLink;else delete e.invoiceLinkId;alert('Impossible de créer le brouillon.');return;}
