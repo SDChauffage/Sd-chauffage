@@ -72,9 +72,29 @@ $('lu').value='';$('lu').type='email';$('lu').placeholder='E-mail du compte de l
 // Connexion conservée sur cet appareil, avec vérification au démarrage.
 session=storedSession();if(session)setSession(session);
 showLogin(session?'Vérification de ta session…':'');
-if(session){const epoch=++authEpoch;const offlineAllowed=()=>{try{const proof=JSON.parse(localStorage.getItem(OFFLINE)||'null');return !navigator.onLine&&proof?.user===session?.user?.id&&Date.now()-proof.at<24*60*60*1000&&Date.now()>=proof.at;}catch{return false;}};if(offlineAllowed()){verified=true;openVerifiedApp();status('Hors connexion · données locales · synchronisation au retour du réseau');}else verifyAccess(epoch).then(ok=>{if(ok){openVerifiedApp();synchronise();}}).catch(()=>{if(epoch!==authEpoch)return;if(offlineAllowed()){verified=true;openVerifiedApp();status('Hors connexion · données locales · synchronisation au retour du réseau');}else{forgetSession();showLogin('Reconnecte-toi pour accéder à tes données.');}});}
+if(session){
+ const epoch=++authEpoch;
+ // Accès hors ligne uniquement pour un compte précédemment vérifié en ligne sur cet appareil.
+ // Le délai de 30 jours ne remplace pas une connexion : une vérification réussie le renouvelle.
+ const offlineAllowed=()=>{try{
+  const proof=JSON.parse(localStorage.getItem(OFFLINE)||'null');
+  const saved=JSON.parse(localStorage.getItem(META)||'null');
+  return proof?.user===session?.user?.id&&saved?.user===session?.user?.id&&
+   Number.isFinite(proof.at)&&Date.now()>=proof.at&&Date.now()-proof.at<30*24*60*60*1000;
+ }catch{return false;}};
+ const openOffline=()=>{verified=true;openVerifiedApp();status('Hors connexion · données conservées ici · synchronisation au retour du réseau');};
+ if(!navigator.onLine&&offlineAllowed())openOffline();
+ else verifyAccess(epoch).then(ok=>{if(ok){openVerifiedApp();synchronise();}})
+ .catch(error=>{if(epoch!==authEpoch)return;
+  // Une erreur réseau (y compris un faux état « en ligne ») ne déconnecte pas le compte.
+  // Un accès refusé / une session invalide ne donne jamais accès au cache hors ligne.
+  if(!error?.status&&offlineAllowed())openOffline();
+  else if(error?.status===401||error?.status===403){forgetSession();showLogin('Session expirée ou accès refusé. Reconnecte-toi en ligne.');}
+  else showLogin('Connexion requise. Connecte-toi à Internet une fois pour activer le mode hors ligne.');
+ });
+}
 
-setInterval(()=>{if(document.visibilityState!=='hidden')synchronise();},5000);
-window.addEventListener('online',()=>synchronise());document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')synchronise();});
+setInterval(()=>{if(document.visibilityState!=='hidden'&&navigator.onLine)synchronise();},15000);
+window.addEventListener('online',()=>synchronise());window.addEventListener('offline',()=>{if(verified)status('Hors connexion · modifications conservées ici · synchronisation au retour du réseau');});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&navigator.onLine)synchronise();});
 window.addEventListener('storage',event=>{if(event.key==='sdchauffage-lock-event'&&verified)lockApp('Session fermée dans un autre onglet.');if(verified&&event.key===KEY&&event.newValue){try{const other=normalise(JSON.parse(event.newValue),true);const merged=mergeData(lastDisk||base,db,other);if(!merged.conflicts.length&&!editing()){db=merged.data;lastDisk=clone(other);render();queue();}else status('Autre onglet modifié · ferme le formulaire puis actualise',true);}catch{}}});
 })();
