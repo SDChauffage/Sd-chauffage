@@ -131,7 +131,39 @@ window.billingAddProduct=function(a){
 window.billingCreateClient=()=>{const c={};for(const k of ['name','phone','email','address','zip','city'])c[k]=$('bill-new-'+k).value.trim();if(!c.name)return alert('Le nom du client est obligatoire.');if(!$('bill-new-email').checkValidity())return $('bill-new-email').reportValidity();if(db.clients.some(x=>x.name.toLocaleLowerCase()===c.name.toLocaleLowerCase()))return alert('Un client porte déjà ce nom. Sélectionne-le dans la liste.');db.clients.push({...c,last:'',notes:''});save();editor.doc.client=c.name;delete editor.doc.clientSnapshot;renderEditor();};
 function prepared(){const {key,index,doc:d,legacy}=editor;const result=copy(d);result.number=result.number.trim();if(!result.number||!result.client||!result.date||!result.dueDate){alert('Renseigne le client, le numéro, la date et l’échéance.');return null;}if(result.dueDate<result.date){alert('L’échéance doit être égale ou postérieure à la date du document.');return null;}if(db[key].some((x,i)=>i!==index&&x.number===result.number)){alert('Ce numéro existe déjà. Choisis un numéro unique.');return null;}if(!legacy){if(!result.lines.length||!result.lines.every(validLine)){alert('Chaque ligne doit avoir une description, une quantité positive, un prix valide, une remise entre 0 et 100 % et une TVA valide.');return null;}result.lines=result.lines.map(l=>({...l,description:l.description.trim(),quantity:number(l.quantity),unitPrice:number(l.unitPrice),discount:number(l.discount),vat:number(l.vat)}));const t=totals(result.lines,result.pricesIncludeVat);result.total=t.total;result.subtotal=t.subtotal;result.tax=t.tax;result.description=summary(result);}else{if(!Number.isFinite(number(result.total))||number(result.total)<0){alert('Renseigne un total valide.');return null;}result.total=round(number(result.total));}result.clientSnapshot=result.clientSnapshot||copy(db.clients.find(c=>c.name===result.client)||{name:result.client});result.companySnapshot=result.companySnapshot||copy(db.settings);if(key==='invoices')result.footerText=result.footerText??result.companySnapshot.invoiceFooter??db.settings.invoiceFooter??window.SDPayment?.defaultFooter??'Merci de votre confiance !';if(key==='quotes')result.quoteFooterText=result.quoteFooterText??result.companySnapshot.quoteFooter??(d.companySnapshot?'Merci de votre confiance !':db.settings.quoteFooter??'Merci de votre confiance !');return result;}
 window.billingSave=()=>{const d=prepared();if(!d)return;const {key,index}=editor;const before=copy(db[key]);if(index===null)db[key].push(d);else db[key][index]=d;try{save();}catch(e){db[key]=before;alert('Enregistrement impossible. Le document reste ouvert pour réessayer.');return;}editor=null;closeModal();render();};
-async function printDocument(d,key){let container=$('billing-print');if(!container){container=document.createElement('div');container.id='billing-print';container.style.display='none';document.body.appendChild(container);}container.innerHTML=paper(d,key);try{await Promise.all(Array.from(container.querySelectorAll('img')).map(img=>img.decode?img.decode():img.complete?(img.naturalWidth?Promise.resolve():Promise.reject(Error('Logo indisponible'))):new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;})));}catch(error){alert('Le logo n’a pas pu être chargé. Actualise l’app puis réessaie le PDF.');return;}const previous=document.title;document.title=(key==='quotes'?'Devis-':'Facture-')+d.number;try{window.print();}finally{document.title=previous;}}
+async function printDocument(d,key){
+ // Safari sur iPad ajoute l'URL GitHub et la date à l'impression HTML.
+ // Générer un PDF autonome évite ces mentions automatiques.
+ if(typeof window.html2pdf!=='function'){
+  alert('Le générateur PDF n’est pas chargé. Ouvre l’application avec Internet une fois et actualise-la, puis réessaie.');
+  return;
+ }
+ let container=$('billing-pdf-export');
+ if(!container){
+  container=document.createElement('div');
+  container.id='billing-pdf-export';
+  container.style.cssText='position:fixed;left:-12000px;top:0;width:794px;background:#fff;z-index:-1;pointer-events:none;';
+  document.body.appendChild(container);
+ }
+ container.innerHTML=paper(d,key);
+ const sheet=container.querySelector('.billing-paper');
+ sheet.style.cssText='width:794px;max-width:none;min-height:0;padding:30px;border:0;box-sizing:border-box;background:#fff;color:#17232d;';
+ const filename=(key==='quotes'?'Devis-':'Facture-')+String(d.number||'document').replace(/[^a-zA-Z0-9_-]/g,'-')+'.pdf';
+ try{
+  await Promise.all(Array.from(sheet.querySelectorAll('img')).map(img=>img.decode?img.decode():new Promise((resolve,reject)=>{if(img.complete)return img.naturalWidth?resolve():reject(Error('Logo indisponible'));img.onload=resolve;img.onerror=reject;})));
+  await html2pdf().set({
+   margin:[12,12,12,12],
+   filename,
+   image:{type:'jpeg',quality:0.97},
+   html2canvas:{scale:2,backgroundColor:'#ffffff',useCORS:true,scrollX:0,scrollY:0,logging:false},
+   jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
+   pagebreak:{mode:['css','legacy'],avoid:['tr','.billing-totals','.billing-payment','.billing-invoice-footer','.billing-parties']}
+  }).from(sheet).save();
+ }catch(error){
+  console.error('Échec de création du PDF',error);
+  alert('Impossible de créer le PDF. Vérifie que le logo est disponible et que l’iPad dispose d’assez de mémoire.');
+ }finally{container.replaceChildren();}
+}
 window.billingDraftPrint=()=>{const d=prepared();if(d)printDocument(d,editor.key);};
 window.billingPrint=(key,i)=>{const d=db[key][i];if(d)printDocument(d,key);};
 window.billingView=(key,i)=>{const d=db[key][i];if(!d)return;$('mt').textContent=(key==='quotes'?'Devis ':'Facture ')+d.number;$('mb').innerHTML=`<div class="billing-sheet"><div class="actions" style="margin-bottom:16px"><button class="btn primary" onclick="openDocNumber('${key}',${i})">Modifier</button><button class="btn soft" onclick="billingPrint('${key}',${i})">Imprimer / enregistrer en PDF</button><button class="btn danger" onclick="remove('${key}',${i})">Supprimer</button>${key==='quotes'?`<button class="btn soft" onclick="billingConvert(${i})">Créer une facture</button>`:''}</div>${paper(d,key)}</div>`;$('modal').classList.add('open');};
