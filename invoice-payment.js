@@ -37,6 +37,7 @@ function render(settings,fallback,amount,number,footer=''){
  const reference=clean(number);
  if(!iban)return '';
  let qr='';
+ if((settings.paymentQr??fallback.paymentQr)!==false&&amount<=0){qr='<div class="billing-qr-pending" style="font-size:10px;color:#71808b;align-self:center">QR code disponible dès que le montant de la facture est supérieur à 0 €.</div>';}
  if((settings.paymentQr??fallback.paymentQr)!==false&&amount>0){
   try{qr=`<figure class="billing-payment-qr">${qrSvg(payload({iban,bic,name,amount,reference}))}<figcaption>Scanner pour préparer le virement<br>Avec une application bancaire compatible</figcaption></figure>`;}catch(e){console.warn('QR paiement indisponible :',e);qr='<div class="billing-payment-qr billing-qr-error" role="status">QR indisponible : vérifier IBAN, bénéficiaire et communication.</div>';}
  }
