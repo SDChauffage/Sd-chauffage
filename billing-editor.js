@@ -225,7 +225,23 @@ async function printDocument(d,key){
 }
 window.billingDraftPrint=()=>{const d=prepared();if(d)printDocument(d,editor.key);};
 window.billingPrint=(key,i)=>{const d=db[key][i];if(d)printDocument(d,key);};
-window.billingView=(key,i)=>{const d=db[key][i];if(!d)return;$('mt').textContent=(key==='quotes'?'Devis ':'Facture ')+d.number;$('mb').innerHTML=`<div class="billing-sheet"><div class="actions" style="margin-bottom:16px"><button class="btn primary" onclick="openDocNumber('${key}',${i})">Modifier</button><button class="btn soft" onclick="billingPrint('${key}',${i})">Télécharger PDF (sans pied de page)</button><button class="btn danger" onclick="remove('${key}',${i})">Supprimer</button>${key==='quotes'?`<button class="btn soft" onclick="billingConvert(${i})">Créer une facture</button>`:''}</div>${paper(d,key)}</div>`;$('modal').classList.add('open');};
+window.billingRenameInvoice=function(index){
+ const invoice=db.invoices[index];if(!invoice)return;
+ const previous=String(invoice.number||'');
+ const proposed=prompt('Nouveau numéro de facture :',previous);
+ if(proposed===null)return;
+ const next=proposed.trim();
+ if(!next){alert('Le numéro ne peut pas être vide.');return;}
+ if(next===previous)return;
+ if(db.invoices.some((x,i)=>i!==index&&String(x.number||'').trim().toLocaleLowerCase('fr')===next.toLocaleLowerCase('fr'))){alert('Ce numéro est déjà utilisé par une autre facture.');return;}
+ if(!confirm('Remplacer le numéro '+previous+' par '+next+' ?'))return;
+ const before=copy(invoice);
+ invoice.number=next;
+ try{save();}catch(err){db.invoices[index]=before;alert('Impossible d’enregistrer le nouveau numéro.');return;}
+ closeModal();
+ if(page!=='invoices')go('invoices');else render();
+};
+window.billingView=(key,i)=>{const d=db[key][i];if(!d)return;$('mt').textContent=(key==='quotes'?'Devis ':'Facture ')+d.number;$('mb').innerHTML=`<div class="billing-sheet"><div class="actions" style="margin-bottom:16px"><button class="btn primary" onclick="openDocNumber('${key}',${i})">Modifier</button>${key==='invoices'?`<button class="btn ghost" onclick="billingRenameInvoice(${i})">Changer le n°</button>`:''}<button class="btn soft" onclick="billingPrint('${key}',${i})">Télécharger PDF (sans pied de page)</button><button class="btn danger" onclick="remove('${key}',${i})">Supprimer</button>${key==='quotes'?`<button class="btn soft" onclick="billingConvert(${i})">Créer une facture</button>`:''}</div>${paper(d,key)}</div>`;$('modal').classList.add('open');};
 window.billingConvert=i=>{const quote=db.quotes[i];if(!quote)return;const existing=db.invoices.findIndex(d=>d.sourceQuote===quote.number);if(existing>=0){billingView('invoices',existing);return;}openDocNumber('invoices');const date=today();editor.doc={...copy(quote),number:nextNumber('invoices'),date,dueDate:dateAfter(date,7),status:'Brouillon',sourceQuote:quote.number};editor.legacy=!Array.isArray(quote.lines)||!quote.lines.length;renderEditor();};
 const listState={quotes:{query:'',status:'',from:'',to:'',sort:'date',direction:-1,page:0},invoices:{query:'',status:'',from:'',to:'',sort:'date',direction:-1,page:0}};
 function displayStatus(d,key){
@@ -249,7 +265,7 @@ window.docPage=function(key,title){
 };
 function filteredRows(key){const s=listState[key];const q=s.query.trim().toLocaleLowerCase('fr');return db[key].map((d,i)=>({d,i})).filter(({d})=>(!q||[d.number,d.client,d.subject,summary(d)].join(' ').toLocaleLowerCase('fr').includes(q))&&(!s.status||displayStatus(d,key)===s.status)&&(!s.from||d.date>=s.from)&&(!s.to||d.date<=s.to)).sort((a,b)=>{let result;if(s.sort==='total')result=(number(a.d.total)||0)-(number(b.d.total)||0);else{const av=s.sort==='status'?displayStatus(a.d,key):String(a.d[s.sort]||'');const bv=s.sort==='status'?displayStatus(b.d,key):String(b.d[s.sort]||'');result=av.localeCompare(bv,'fr',{numeric:true,sensitivity:'base'});}return s.direction*(result||String(a.d.number||'').localeCompare(String(b.d.number||''),'fr',{numeric:true}));});}
 function renderListRows(key){const state=listState[key];const rows=filteredRows(key);const pages=Math.max(1,Math.ceil(rows.length/25));state.page=Math.max(0,Math.min(state.page,pages-1));const shown=rows.slice(state.page*25,state.page*25+25);
- $('billing-register-rows').innerHTML=shown.map(({d,i})=>`<tr><td><button class="billing-number" onclick="billingView('${key}',${i})">${esc(d.number)}</button>${d.subject?`<div style="font-size:11px;margin-top:4px">${esc(d.subject)}</div>`:''}</td><td class="billing-date">${fmt(d.date)}</td><td>${esc(d.client)}</td><td class="billing-amount">${money(d.total)}</td><td>${badge(d,key)}</td><td class="billing-actions"><button class="btn soft" onclick="billingView('${key}',${i})">Ouvrir</button> <button class="btn ghost" onclick="billingPrint('${key}',${i})">PDF</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Aucun document ne correspond à ces filtres.</td></tr>';
+ $('billing-register-rows').innerHTML=shown.map(({d,i})=>`<tr><td><button class="billing-number" onclick="billingView('${key}',${i})">${esc(d.number)}</button>${d.subject?`<div style="font-size:11px;margin-top:4px">${esc(d.subject)}</div>`:''}</td><td class="billing-date">${fmt(d.date)}</td><td>${esc(d.client)}</td><td class="billing-amount">${money(d.total)}</td><td>${badge(d,key)}</td><td class="billing-actions"><button class="btn soft" onclick="billingView('${key}',${i})">Ouvrir</button> ${key==='invoices'? `<button class="btn ghost" onclick="billingRenameInvoice(${i})">Changer le n°</button> `:''}<button class="btn ghost" onclick="billingPrint('${key}',${i})">PDF</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">Aucun document ne correspond à ces filtres.</td></tr>';
  $('billing-register-count').textContent=rows.length+' document'+(rows.length>1?'s':'')+' sur '+db[key].length;
  $('billing-register-total').textContent='Total des résultats : '+money(rows.reduce((sum,{d})=>sum+(number(d.total)||0),0));
  $('billing-page').textContent=(state.page+1)+' / '+pages;$('billing-prev').disabled=state.page===0;$('billing-next').disabled=state.page>=pages-1;
