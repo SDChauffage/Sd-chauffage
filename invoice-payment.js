@@ -38,7 +38,7 @@ function render(settings,fallback,amount,number,footer=''){
  if(!iban)return '';
  let qr='';
  if((settings.paymentQr??fallback.paymentQr)!==false&&amount>0){
-  try{qr=`<figure class="billing-payment-qr">${qrSvg(payload({iban,bic,name,amount,reference}))}<figcaption>Scanner pour préparer le virement<br>Avec une application bancaire compatible</figcaption></figure>`;}catch(e){/* Les données de paiement restent lisibles sans QR. */}
+  try{qr=`<figure class="billing-payment-qr">${qrSvg(payload({iban,bic,name,amount,reference}))}<figcaption>Scanner pour préparer le virement<br>Avec une application bancaire compatible</figcaption></figure>`;}catch(e){console.warn('QR paiement indisponible :',e);qr='<div class="billing-payment-qr billing-qr-error" role="status">QR indisponible : vérifier IBAN, bénéficiaire et communication.</div>';}
  }
  return `<section class="billing-payment"><div class="billing-payment-left"><div class="billing-payment-details"><b>Paiement par virement</b><p>IBAN : <b>${escape(iban)}</b>${bic?' · BIC : '+escape(bic):''} · Communication : <b>${escape(reference)}</b> · ${escape(new Intl.NumberFormat('fr-BE',{style:'currency',currency:'EUR'}).format(amount))}</p></div>${footer?`<div class="billing-invoice-footer">${escape(footer)}</div>`:''}</div>${qr}</section>`;
 }
