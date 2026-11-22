@@ -31,7 +31,7 @@ function qrSvg(data){
  let path='';for(let y=0;y<size;y++)for(let x=0;x<size;x++)if(qr.isDark(y,x))path+=`M${x+4} ${y+4}h1v1h-1z`;
  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size+8} ${size+8}" width="170" height="170" role="img" aria-label="QR code de paiement SEPA" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="white"/><path d="${path}" fill="black"/></svg>`;
 }
-function render(settings,fallback,amount,number){
+function render(settings,fallback,amount,number,footer=''){
  const iban=settings.iban||fallback.iban||'',bic=settings.bic||fallback.bic||'';
  const name=settings.paymentName||settings.company||fallback.paymentName||fallback.company||'';
  const reference=clean(number);
@@ -40,7 +40,7 @@ function render(settings,fallback,amount,number){
  if((settings.paymentQr??fallback.paymentQr)!==false&&amount>0){
   try{qr=`<figure class="billing-payment-qr">${qrSvg(payload({iban,bic,name,amount,reference}))}<figcaption>Scanner pour préparer le virement<br>Avec une application bancaire compatible</figcaption></figure>`;}catch(e){/* Les données de paiement restent lisibles sans QR. */}
  }
- return `<section class="billing-payment"><div><b>Paiement par virement</b><p>Bénéficiaire : ${escape(name)}<br>IBAN : ${escape(iban)}${bic?'<br>BIC : '+escape(bic):''}<br>Communication : ${escape(reference)}<br>Montant : ${escape(new Intl.NumberFormat('fr-BE',{style:'currency',currency:'EUR'}).format(amount))}</p></div>${qr}</section>`;
+ return `<section class="billing-payment"><div class="billing-payment-left"><div class="billing-payment-details"><b>Paiement par virement</b><p>IBAN : <b>${escape(iban)}</b>${bic?' · BIC : '+escape(bic):''} · Communication : <b>${escape(reference)}</b> · ${escape(new Intl.NumberFormat('fr-BE',{style:'currency',currency:'EUR'}).format(amount))}</p></div>${footer?`<div class="billing-invoice-footer">${escape(footer)}</div>`:''}</div>${qr}</section>`;
 }
 window.SDPayment={defaultFooter,validIban,payload,qrSvg,render};
 })();
