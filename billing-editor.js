@@ -52,6 +52,7 @@ button.billing-detail:hover{color:#304cb2}.billing-detail span{color:var(--muted
 .billing-entry-table input,.billing-entry-table select,.billing-entry-table textarea{width:100%;padding:9px 7px;border:1px solid #cfd7e3;background:#f6f8fb;border-radius:5px;min-height:44px;color:var(--text)}
 .billing-entry-table textarea{min-height:100px;resize:vertical}.billing-entry-table input:focus,.billing-entry-table textarea:focus{outline:2px solid #94abef;background:white}
 .billing-entry-table small{display:block;font-size:11px;margin:5px 0;color:var(--muted)}
+.billing-suggestions{margin:5px 0 8px;border:1px solid #b9cbe0;border-radius:9px;background:white;max-height:230px;overflow:auto;box-shadow:0 5px 15px #17232d18}.billing-suggestions[hidden]{display:none}.billing-suggestion{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;min-height:44px;padding:10px;border:0;border-bottom:1px solid #e1e7ed;background:white;text-align:left;color:var(--text);cursor:pointer}.billing-suggestion:last-child{border:0}.billing-suggestion:hover,.billing-suggestion:focus-visible{background:#edf4ff}.billing-suggestion b{font-size:12px;white-space:nowrap;color:#27556f}
 .billing-remember{border:0;background:transparent;color:#586e93;font-size:11px;padding:3px 0;cursor:pointer;text-align:left}
 .billing-sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 @media(max-width:900px){.billing-workspace{grid-template-columns:minmax(0,1fr) 230px;gap:14px}.billing-cegid .billing-paper{padding:24px}}
@@ -94,7 +95,7 @@ function renderEditor(){
 }
 function lineHTML(l,i){
  const input=(k,label,v)=>`<td><label class="billing-sr" for="bill-line-${i}-${k}">${label} ligne ${i+1}</label><input id="bill-line-${i}-${k}" inputmode="decimal" value="${esc(v)}" oninput="billingLine(${i},'${k}',this.value)"></td>`;
- return `<tr><td><label class="billing-sr" for="bill-line-${i}-description">Description ligne ${i+1}</label><textarea id="bill-line-${i}-description" placeholder="Décris le travail ou le matériel…" oninput="billingLine(${i},'description',this.value)">${esc(l.description)}</textarea><small id="bill-line-total-${i}"></small><button type="button" class="billing-remember" onclick="billingRemember(${i})">Sauver dans mes produits et services</button></td>${input('quantity','Quantité',l.quantity)}${input('unitPrice','Prix unitaire en euros',l.unitPrice)}${input('discount','Remise en pour cent',l.discount)}<td><label class="billing-sr" for="bill-line-${i}-vat">TVA ligne ${i+1}</label><select id="bill-line-${i}-vat" onchange="billingLine(${i},'vat',this.value)">${[...new Set([0,6,12,21,number(l.vat)])].sort((a,b)=>a-b).map(v=>`<option value="${v}" ${number(l.vat)===v?'selected':''}>${v} %</option>`).join('')}</select></td><td><button type="button" class="btn ghost" aria-label="Supprimer la ligne ${i+1}" onclick="billingRemoveLine(${i})">×</button></td></tr>`;
+ return `<tr><td><label class="billing-sr" for="bill-line-${i}-description">Description ligne ${i+1}</label><textarea id="bill-line-${i}-description" placeholder="Tape gi pour retrouver Gicleur…" autocomplete="off" oninput="billingLine(${i},'description',this.value);billingSuggest(${i},this.value)" onfocus="billingSuggest(${i},this.value)">${esc(l.description)}</textarea><div id="bill-suggestions-${i}" class="billing-suggestions" hidden></div><small id="bill-line-total-${i}"></small><button type="button" class="billing-remember" onclick="billingRemember(${i})">Sauver dans mes produits et services</button></td>${input('quantity','Quantité',l.quantity)}${input('unitPrice','Prix unitaire en euros',l.unitPrice)}${input('discount','Remise en pour cent',l.discount)}<td><label class="billing-sr" for="bill-line-${i}-vat">TVA ligne ${i+1}</label><select id="bill-line-${i}-vat" onchange="billingLine(${i},'vat',this.value)">${[...new Set([0,6,12,21,number(l.vat)])].sort((a,b)=>a-b).map(v=>`<option value="${v}" ${number(l.vat)===v?'selected':''}>${v} %</option>`).join('')}</select></td><td><button type="button" class="btn ghost" aria-label="Supprimer la ligne ${i+1}" onclick="billingRemoveLine(${i})">×</button></td></tr>`;
 }
 window.billingEditNumber=function(){if(!editor)return;billingPanel('details');$('bill-number')?.focus();$('bill-number')?.select();};
 window.billingPanel=function(name){
@@ -121,6 +122,43 @@ function updatePreview(){
 }
 window.billingField=(k,v)=>{editor.doc[k]=v;if(k==='client')delete editor.doc.clientSnapshot;updatePreview();};
 window.billingLine=(i,k,v)=>{editor.doc.lines[i][k]=v;updatePreview();};
+// Recherche instantanée dans les produits et services enregistrés.
+function billingMatches(query){
+ const q=String(query||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('fr');
+ if(q.length<2)return [];
+ const normalized=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('fr');
+ return db.services.map((service,index)=>({service,index,key:normalized(service.name)}))
+  .filter(x=>x.key.includes(q))
+  .sort((a,b)=>(b.key.startsWith(q)?1:0)-(a.key.startsWith(q)?1:0))
+  .slice(0,8);
+}
+window.billingSuggest=function(i,value){
+ if(!editor||editor.legacy)return;
+ const target=$('bill-suggestions-'+i);if(!target)return;
+ const results=billingMatches(value);
+ if(!results.length){target.hidden=true;target.replaceChildren();return;}
+ target.innerHTML=results.map(({service,index})=>`<button type="button" class="billing-suggestion" onclick="billingChooseSuggestion(${i},${index})"><span>${esc(service.name)}</span><b>${money(service.price)} HTVA</b></button>`).join('');
+ target.hidden=false;
+};
+window.billingChooseSuggestion=function(i,index){
+ if(!editor||editor.legacy||!editor.doc.lines[i])return;
+ const service=db.services[index];if(!service)return;
+ const vat=number(service.vat??21);
+ const price=number(service.price);
+ const line=editor.doc.lines[i];
+ line.description=service.name;
+ line.unitPrice=editor.doc.pricesIncludeVat?round(price*(1+vat/100)):price;
+ line.vat=vat;
+ line.discount=number(service.discount??0);
+ const description=$('bill-line-'+i+'-description');
+ if(description)description.value=line.description;
+ for(const [field,value] of [['unitPrice',line.unitPrice],['vat',line.vat],['discount',line.discount]]){
+  const el=$('bill-line-'+i+'-'+field);if(el)el.value=String(value);
+ }
+ const menu=$('bill-suggestions-'+i);if(menu){menu.hidden=true;menu.replaceChildren();}
+ updatePreview();
+};
+
 window.billingAddLine=()=>{editor.panel='lines';editor.doc.lines.push({...newLine(),vat:editor.doc.lines.at(-1)?.vat??21});renderEditor();$('bill-line-'+(editor.doc.lines.length-1)+'-description')?.focus?.();};
 window.billingRemoveLine=i=>{editor.doc.lines.splice(i,1);renderEditor();};
 window.billingStartLines=()=>{if(!confirm('Le montant global sera remplacé par le total des lignes. Continuer ?'))return;editor.doc.lines=[{...newLine(),description:editor.doc.description||''}];editor.legacy=false;renderEditor();};
